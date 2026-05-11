@@ -242,7 +242,8 @@ conversation = [
 # Connect GitHub repo
 # Render auto-deploys on push
 # Environment: Python 3.10
-# Start command: python config.py
+# Start command: bash render_start.sh
+
 ```
 
 ### Option 2: Railway

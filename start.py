@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Startup script for SHL Assessment Recommender.
 Run this to start the FastAPI server.
