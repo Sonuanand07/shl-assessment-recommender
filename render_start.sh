@@ -14,5 +14,7 @@ else
   exit 127
 fi
 
-exec "$PY_BIN" -m uvicorn app:app --host "${API_HOST:-0.0.0.0}" --port "${API_PORT:-8000}"
+# Use Render's standard $PORT if provided
+PORT_TO_USE="${PORT:-${API_PORT:-8000}}"
+exec "$PY_BIN" -m uvicorn app:app --host "${API_HOST:-0.0.0.0}" --port "$PORT_TO_USE"
 
