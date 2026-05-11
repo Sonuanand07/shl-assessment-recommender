@@ -242,7 +242,7 @@ conversation = [
 # Connect GitHub repo
 # Render auto-deploys on push
 # Environment: Python 3.10
-# Start command: uvicorn app:app --host 0.0.0.0 --port $PORT
+Start command: python -m uvicorn app:app --host 0.0.0.0 --port $PORT
 
 
 ```
