@@ -14,8 +14,9 @@
    - **Name**: `shl-assessment-recommender`
    - **Environment**: `Python 3`
    - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `python -m uvicorn app:app --host 0.0.0.0 --port $PORT`
+   - **Start Command**: `python3 -m uvicorn app:app --host 0.0.0.0 --port $PORT`
    - **Plan**: Free (or Starter if on free tier limit)
+   - **Root Directory**: `.` (project root)
 
 3. **Deploy**
    - Click "Create Web Service"
@@ -27,12 +28,13 @@
 
 ```bash
 # Test locally first
-python start.py
+python3 start.py
+# Or: python -m uvicorn app:app --host 0.0.0.0 --port 8000
 # Visit http://localhost:8000/health
 # Should return: {"status": "ok"}
 
 # Run tests
-python integration_test.py
+python3 integration_test.py
 # All 6 tests should pass
 
 # Deploy to Render using web dashboard
@@ -43,7 +45,7 @@ python integration_test.py
 
 ## Verifying Deployment
 
-Once deployed to Render:
+Once deployed to Render (wait 1-2 minutes for cold start):
 
 ```bash
 # Test health endpoint
@@ -161,7 +163,8 @@ curl -X POST https://shl-assessment-recommender-xxxxx.onrender.com/chat \
 1. Check build logs on Render dashboard
 2. Verify Python version is 3.11+ (check runtime.txt)
 3. Ensure requirements.txt includes: fastapi, uvicorn[standard]
-4. Verify Procfile contains: `python -m uvicorn app:app --host 0.0.0.0 --port $PORT`
+4. Verify Procfile contains: `python3 -m uvicorn app:app --host 0.0.0.0 --port $PORT` (note: python3, not python)
+5. Check Render doesn't have open ports detected—this means app isn't binding to PORT correctly
 
 ### Personality assessments not in recommendations
 
