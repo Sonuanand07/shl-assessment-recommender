@@ -1,14 +1,8 @@
-# TODO - SHL Assessment Recommender (Deployment + Submission)
+# TODO - Render deployment fix
 
-## Planned / Completed Steps
-- [x] Inspect repo structure and key files.
-- [x] Review existing FastAPI endpoints, agent logic, and catalog loader.
-- [x] Create submission approach document in Markdown for PDF conversion: `SUBMISSION_APPROACH.md`.
-
-## Remaining Steps for Submission
-- [x] Deploy API to Render and obtain public URL.
-- [ ] Verify GET `/health` and POST `/chat` work on the deployed URL.
-- [ ] Confirm cold-start behavior (call health after inactivity).
-- [ ] Push repo to GitHub.
-- [x] Convert `SUBMISSION_APPROACH.md` to a 2-page PDF and submit (copy to PDF from Markdown).
+- [ ] Update render_start.sh to ensure dependencies are installed before starting uvicorn, and add a runtime import check for uvicorn.
+- [ ] (Optional) Add similar guard to start.py.
+- [ ] Update DEPLOYMENT.md start command if needed to match the corrected script.
+- [ ] Run local startup command to confirm uvicorn import works.
+- [ ] Run integration tests (python integration_test.py) to confirm functionality.
 
