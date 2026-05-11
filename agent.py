@@ -56,15 +56,15 @@ class AssessmentRecommender:
     
     # Mapping of common terms to assessment types
     ASSESSMENT_TYPE_MAPPING = {
-        'personality': ['Personality & Behavior', 'OPQ32r', 'personality assessment'],
-        'knowledge': ['Knowledge & Skills', 'technical', 'skills test'],
-        'ability': ['Ability & Aptitude', 'reasoning', 'iq test'],
-        'situational': ['Biodata & Situational Judgment', 'situational judgment'],
+        'personality': ['Personality & Behavior', 'opq', 'personality', 'behavioral', 'behavior'],
+        'knowledge': ['Knowledge & Skills', 'technical', 'skills', 'programming', 'development'],
+        'ability': ['Ability & Aptitude', 'reasoning', 'cognitive', 'numerical', 'verbal', 'inductive'],
+        'situational': ['Biodata & Situational Judgment', 'situational', 'judgment', 'interview'],
         'motivation': ['Motivation'],
-        'competency': ['Competencies'],
-        'development': ['Development & 360'],
-        'leadership': ['Leadership', 'executive'],
-        'interview': ['Interview'],
+        'competency': ['Competencies', 'competency'],
+        'development': ['Development & 360', '360', 'feedback'],
+        'leadership': ['Leadership', 'executive', 'leader', 'management'],
+        'simulation': ['Simulations', 'simulation'],
     }
     
     JOB_LEVEL_MAPPING = {
@@ -117,59 +117,71 @@ class AssessmentRecommender:
         """Extract context from user message and history."""
         message_lower = message.lower()
         
-        # Extract job title
-        if any(title in message_lower for title in ['developer', 'engineer', 'analyst', 'manager', 'leader', 'designer']):
-            self.context.job_title = message
+        # Extract job title / role
+        role_keywords = ['developer', 'engineer', 'analyst', 'manager', 'leader', 'designer', 
+                        'agent', 'representative', 'operator', 'technician', 'specialist']
+        for keyword in role_keywords:
+            if keyword in message_lower:
+                self.context.job_title = message
+                break
         
-        # Extract experience level
+        # Extract experience level / job level
         for level, keywords in self.JOB_LEVEL_MAPPING.items():
             for keyword in keywords:
                 if keyword.lower() in message_lower:
-                    if level == 'entry':
-                        self.context.job_levels.append('Entry-Level')
-                    elif level == 'mid':
-                        self.context.job_levels.append('Mid-Professional')
-                    elif level == 'senior':
-                        self.context.job_levels.append('Professional Individual Contributor')
-                    elif level == 'manager':
-                        self.context.job_levels.append('Manager')
-                    elif level == 'director':
-                        self.context.job_levels.append('Director')
-                    elif level == 'executive':
-                        self.context.job_levels.append('Executive')
+                    level_map = {
+                        'entry': 'Entry-Level',
+                        'mid': 'Mid-Professional',
+                        'senior': 'Professional Individual Contributor',
+                        'manager': 'Manager',
+                        'director': 'Director',
+                        'executive': 'Executive'
+                    }
+                    if level_map.get(level) not in self.context.job_levels:
+                        self.context.job_levels.append(level_map.get(level))
         
         # Extract years of experience
         years_match = re.search(r'(\d+)\s*(?:years?|yrs?)', message_lower)
         if years_match:
             self.context.experience_years = int(years_match.group(1))
         
-        # Extract purpose
-        if any(word in message_lower for word in ['selection', 'hiring', 'screening', 'evaluate']):
+        # Extract purpose / use case
+        if any(word in message_lower for word in ['selection', 'hiring', 'screening', 'evaluate', 'candidates']):
             self.context.purpose = 'selection'
-        elif any(word in message_lower for word in ['development', 'develop', 'improve', 'growth', 'feedback']):
+        elif any(word in message_lower for word in ['development', 'develop', 'improve', 'growth', 'feedback', 'coaching']):
             self.context.purpose = 'development'
-        elif any(word in message_lower for word in ['benchmark', 'benchmarking']):
+        elif any(word in message_lower for word in ['benchmark', 'benchmarking', 'compare']):
             self.context.purpose = 'benchmarking'
         
-        # Extract assessment types
+        # Extract assessment types from message
         for atype, keywords in self.ASSESSMENT_TYPE_MAPPING.items():
             for keyword in keywords:
                 if keyword.lower() in message_lower:
-                    if atype == 'personality':
-                        if 'Personality & Behavior' not in self.context.assessment_types:
-                            self.context.assessment_types.append('Personality & Behavior')
-                    elif atype == 'knowledge':
-                        if 'Knowledge & Skills' not in self.context.assessment_types:
-                            self.context.assessment_types.append('Knowledge & Skills')
-                    elif atype == 'ability':
-                        if 'Ability & Aptitude' not in self.context.assessment_types:
-                            self.context.assessment_types.append('Ability & Aptitude')
-                    elif atype == 'situational':
-                        if 'Biodata & Situational Judgment' not in self.context.assessment_types:
-                            self.context.assessment_types.append('Biodata & Situational Judgment')
+                    assessment_key = {
+                        'personality': 'Personality & Behavior',
+                        'knowledge': 'Knowledge & Skills',
+                        'ability': 'Ability & Aptitude',
+                        'situational': 'Biodata & Situational Judgment',
+                        'motivation': 'Motivation',
+                        'competency': 'Competencies',
+                        'development': 'Development & 360',
+                        'leadership': 'Leadership',
+                        'simulation': 'Simulations'
+                    }.get(atype)
+                    if assessment_key and assessment_key not in self.context.assessment_types:
+                        self.context.assessment_types.append(assessment_key)
         
-        # Extract skills mentioned
-        skills = re.findall(r'(?:skill|expertise|proficiency|knowledge)\s+in\s+(\w+)', message_lower)
+        # Extract industry / domain
+        industries = ['fintech', 'finance', 'banking', 'tech', 'retail', 'contact center', 'manufacturing', 
+                     'healthcare', 'logistics', 'energy', 'telecom']
+        for industry in industries:
+            if industry in message_lower:
+                self.context.industry = industry
+                break
+        
+        # Extract specific skills or technologies
+        skills = re.findall(r'(?:skill|expertise|proficiency|knowledge|experience)\s+(?:in|with|of)\s+(\w+)', 
+                           message_lower)
         if skills:
             self.context.skills_needed.extend(skills)
     
@@ -213,19 +225,21 @@ class AssessmentRecommender:
         for item in all_items:
             score = 0
             
+            # Score by assessment type match (highest priority if specified)
+            assessment_type_match = False
+            if self.context.assessment_types:
+                item_keys = item.get('keys', [])
+                for atype in self.context.assessment_types:
+                    if atype in item_keys:
+                        score += 20  # Increased from 8 to 20 for explicit assessment type requests
+                        assessment_type_match = True
+            
             # Score by job level match
             if self.context.job_levels:
                 item_levels = item.get('job_levels', [])
                 for level in self.context.job_levels:
                     if level in item_levels:
                         score += 10
-            
-            # Score by assessment type match
-            if self.context.assessment_types:
-                item_keys = item.get('keys', [])
-                for atype in self.context.assessment_types:
-                    if atype in item_keys:
-                        score += 8
             
             # Score by keywords in name/description
             if self.context.skills_needed:
@@ -239,8 +253,12 @@ class AssessmentRecommender:
                 name_desc = (item.get('name', '') + ' ' + item.get('description', '')).lower()
                 title_lower = self.context.job_title.lower()
                 # Look for specific tech terms
-                if any(tech in name_desc for tech in title_lower.split()):
+                if any(tech in name_desc for tech in title_lower.split() if len(tech) > 3):
                     score += 3
+            
+            # Boost if assessment type was explicitly requested and matches
+            if assessment_type_match and self.context.assessment_types:
+                score += 5
             
             if score > 0:
                 scored_items.append((score, item))
