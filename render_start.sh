@@ -24,7 +24,7 @@ echo "[render_start.sh] Using interpreter: $PY_BIN"
 # This avoids cases where the build step didn't install the same env used at runtime.
 if [ -f "requirements.txt" ]; then
   echo "[render_start.sh] Installing dependencies from requirements.txt (if needed)..."
-  "$PY_BIN" -m pip install --no-cache-dir -r requirements.txt
+  "$PY_BIN" -m pip install --no-cache-dir --break-system-packages -r requirements.txt
 else
   echo "[render_start.sh] Warning: requirements.txt not found; skipping install" >&2
 fi
