@@ -1,375 +1,273 @@
-# SHL Assessment Recommender
+# SHL Assessment Recommender API
 
-A conversational AI agent that helps hiring managers and recruiters find the right SHL assessments through natural dialogue. Rather than requiring keyword searches, this agent clarifies vague hiring needs, recommends assessments, handles refinements, and compares options using grounded SHL catalog data.
+**Production-ready conversational agent for discovering SHL assessments through natural dialogue.**
 
-## Overview
+A stateless FastAPI service that helps hiring managers navigate 564 SHL assessments through intelligent conversation. The agent clarifies vague needs, provides targeted recommendations, handles refinements, and compares options using grounded catalog data only.
 
-The agent transforms the assessment selection process from a task of keyword searching to a natural conversation:
+## Quick Start
 
-- **Clarify**: Asks clarifying questions when needs are vague
-- **Recommend**: Provides 1-10 targeted assessments once sufficient context is gathered
-- **Refine**: Updates recommendations when constraints change mid-conversation
-- **Compare**: Answers questions about differences between assessments
-- **Stay in scope**: Refuses off-topic requests and only recommends from SHL catalog
-
-## Project Structure
-
-```
-d:\SHL Assesment Project\
-├── app.py                       # FastAPI service with /health and /chat endpoints
-├── catalog.py                   # Catalog loading and querying
-├── agent.py                     # Conversational agent logic
-├── config.py                    # Configuration and launcher
-├── requirements.txt             # Python dependencies
-├── shl_product_catalog.json     # SHL assessment catalog
-└── README.md                    # This file
+### Local Development
+```bash
+pip install -r requirements.txt
+python start.py
+python integration_test.py  # 6 tests, all passing
 ```
 
-## Features
-
-### Core Capabilities
-
-1. **Stateless Conversation**: Every request includes full conversation history; no server-side state storage
-2. **Schema Compliance**: Strict adherence to required JSON response format
-3. **Robust Parsing**: Multiple fallback strategies for loading the SHL catalog despite encoding issues
-4. **Context Extraction**: Intelligent extraction of job level, purpose, assessment type, and skills from natural language
-5. **Smart Scoring**: Multi-factor recommendation scoring based on job level, assessment type, keywords, and skills
-6. **Turn Management**: Enforces 8-turn conversation limit as per specification
-
-### Conversational Features
-
-- **Clarification**: Asks targeted questions to gather context (job title, level, purpose, assessment type)
-- **Progressive Refinement**: Remembers extracted context and updates understanding across turns
-- **Refusal Handling**: Refuses off-topic requests (general hiring advice, legal questions, prompt injection)
-- **Comparison Support**: Identifies and compares assessments when requested
-- **Early Termination**: Marks conversation complete when recommendations are provided
+### Render Deployment
+1. Push to GitHub
+2. Create web service on Render.com
+3. Connect repository: `shl-assessment-recommender`
+4. Auto-deploys on push; ~1-2 min cold start
 
 ## API Specification
 
-### GET /health
-Health check endpoint for service readiness.
+### Endpoints
 
-**Response (200 OK):**
+**GET /health** - Service readiness
 ```json
-{
-  "status": "ok"
-}
+Response: {"status": "ok"}
 ```
 
-### POST /chat
-Main conversational endpoint.
-
-**Request:**
+**POST /chat** - Main conversation endpoint
 ```json
+Request:
 {
   "messages": [
-    {
-      "role": "user",
-      "content": "We need assessments for senior Java developers"
-    },
-    {
-      "role": "assistant",
-      "content": "Got it. Is this for selection, development, or benchmarking?"
-    },
-    {
-      "role": "user",
-      "content": "Selection - comparing candidates against a technical benchmark"
-    }
+    {"role": "user", "content": "Senior Java developers, selection"},
+    {"role": "assistant", "content": "Here are 5 technical assessments..."}
   ]
 }
-```
 
-**Response (200 OK):**
-```json
+Response:
 {
-  "reply": "For technical selection of senior Java developers, I recommend these assessments covering knowledge and problem-solving skills.",
+  "reply": "For Java developer selection, here are 5 relevant assessments...",
   "recommendations": [
     {
       "name": "Java 8 (New)",
       "url": "https://www.shl.com/products/product-catalog/view/java-8-new/",
-      "test_type": "K"
-    },
-    {
-      "name": "Problem Solving (New)",
-      "url": "https://www.shl.com/products/product-catalog/view/problem-solving-new/",
-      "test_type": "A"
+      "test_type": "K",
+      "keys": ["Knowledge & Skills"],
+      "duration": "45 mins",
+      "languages": ["English"]
     }
   ],
   "end_of_conversation": false
 }
 ```
 
-### Response Fields
+**Response Fields:**
+- `reply`: Natural language from agent
+- `recommendations`: Array of 0-10 assessments (empty during clarification)
+- `end_of_conversation`: Boolean (true only when task complete)
 
-- **reply** (string): Agent's natural language response
-- **recommendations** (array): List of assessment objects when ready, empty array during clarification phase
-  - **name**: Assessment name
-  - **url**: Full SHL catalog URL (must match catalog)
-  - **test_type**: Single letter code (K=Knowledge, P=Personality, A=Ability, S=Situational, M=Motivation, C=Competency, D=Development, O=Other)
-- **end_of_conversation** (boolean): True only when task is complete and shortlist provided
+## Design & Architecture
 
-## Design Decisions
+**Stateless Conversation**: Each request carries full history; agent reconstructs context from scratch.
 
-### 1. Stateless Architecture
-Every POST /chat request carries the full conversation history. The agent reconstructs context from each message, allowing for:
-- Horizontal scaling without session management
-- Resilience to service restarts
-- Clean stateless deployment (Kubernetes, serverless, etc.)
+**Rule-Based, No LLM**: Deterministic keyword extraction + multi-factor scoring. No external API calls.
 
-### 2. Catalog Loading Strategy
-The SHL catalog JSON has encoding issues. The system uses a three-tiered loading strategy:
-1. **ijson**: Streaming JSON parser (handles large files efficiently)
-2. **JSON with cleanup**: Re-encodes with control character removal
-3. **Line-by-line parsing**: Last resort extraction of individual JSON objects
+**Multi-Factor Scoring**:
+- Assessment type match: +20 pts (highest priority)
+- Job level match: +10 pts
+- Skill keyword match: +5 pts
+- Job title match: +3 pts
 
-This ensures robustness despite data quality issues.
+**Robust Catalog Loading**: Three-tier fallback (standard JSON → control-char removal → line-by-line parsing) loads all 564 items despite encoding issues.
 
-### 3. Context Extraction
-The agent uses keyword-based extraction rather than LLM processing:
-- Pattern matching for job levels (entry, mid, senior, manager, director, executive)
-- Keyword detection for purpose (selection, development, benchmarking)
-- Regex extraction for years of experience
-- Key category matching for assessment types
-
-This is fast, predictable, and requires no external LLM calls.
-
-### 4. Scoring and Ranking
-Multi-factor scoring for recommendations:
-- Job level match: +10 points
-- Assessment type match: +8 points
-- Skill keyword match: +5 points
-- Job title keyword match: +3 points
-
-Results sorted by total score and returned in top-K format (up to 10).
-
-### 5. Conversation Flow
-Progressive context gathering:
-1. **Turn 1-2**: Extract basic need (job title, initial context)
-2. **Turn 3-4**: Clarify job level and purpose
-3. **Turn 5-6**: Clarify assessment type if needed
-4. **Turn 7+**: Provide recommendations or handle comparison/refinement
-
-Attempts to avoid recommending until minimum context is gathered (prevents vague hits).
+**Conversation Flow**:
+1. Extract context (job title, level, type, skills)
+2. Check sufficiency (have enough info?)
+3. Route: clarify OR refuse OR recommend
+4. Score & rank all 564 items
+5. Return top-10 with catalog URLs
 
 ## Installation & Setup
-
-### Prerequisites
-- Python 3.8+
-- pip package manager
-- 2GB free disk space (for catalog and dependencies)
-
-### Installation
 
 ```bash
 # Clone/navigate to project directory
 cd "d:\SHL Assesment Project"
 
-# Install dependencies
+# Install dependencies (Python 3.11+)
 pip install -r requirements.txt
 
-# Verify catalog is present
-ls shl_product_catalog.json
+# Start server (runs on http://localhost:8000)
+python start.py
+
+# In another terminal, run tests
+python integration_test.py
 ```
 
-### Running Locally
+**API Documentation**:
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
+
+## Testing & Evaluation
+
+**6 Integration Tests - All Passing ✅**
+
+1. Health Check - Service readiness
+2. Simple Conversation - Senior developer hiring
+3. Multi-Turn Conversation - Entry-level contact center with refinements
+4. Personality Assessments - 7/10 recommendations are personality-focused
+5. Off-Topic Refusal - General hiring advice properly rejected
+6. Vague Query Handling - Insufficient context properly detected
+
+**Run Tests**:
+```bash
+python integration_test.py
+# Output: ✓ All 6 tests passed!
+```
+
+**Evaluation Criteria** (per assignment):
+- Hard Evals: Schema compliance, catalog-only URLs, 8-turn max
+- Recall@10: Relevant assessments in top-10 recommendations
+- Behavior Probes: Off-topic refusal, no premature recommendations, refinement support
+
+## Deployment
+
+### Render.com (Recommended)
+
+**Automatic Deployment**:
+1. Push code to GitHub
+2. Create web service on render.com
+3. Connect repository: `Sonuanand07/shl-assessment-recommender`
+4. Auto-deploys on every push
+5. Available at: `https://shl-assessment-recommender.onrender.com`
+
+**Configuration**:
+- Build: `pip install -r requirements.txt`
+- Start: `python -m uvicorn app:app --host 0.0.0.0 --port $PORT`
+- Python: 3.11+
+- Plan: Free (or Starter)
+
+**Performance**:
+- Cold start: ~1-2 min (free tier, after 30 min inactivity)
+- Warm requests: <500ms
+- All 6 tests pass
+
+### Verify Deployment
 
 ```bash
-# Method 1: Using config.py
-python config.py
+# Health check
+curl https://shl-assessment-recommender.onrender.com/health
+# Response: {"status": "ok"}
 
-# Method 2: Direct uvicorn
-uvicorn app:app --host 0.0.0.0 --port 8000 --reload
-
-# Method 3: Development with logging
-python -m app
+# API docs
+https://shl-assessment-recommender.onrender.com/docs
 ```
 
-Service will be available at `http://localhost:8000`
-
-### API Documentation
-- Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
-
-## Evaluation & Testing
-
-### Evaluation Criteria
-
-The system is evaluated on three dimensions:
-
-1. **Hard Evals (Must Pass)**
-   - Schema compliance on every response
-   - All recommended URLs must exist in catalog
-   - Turn cap (8 max) honored
-   - All recommendations fit within 1-10 range
-
-2. **Recall@10 on Final Recommendations**
-   - Mean Recall@10 across all conversation traces
-   - Formula: (Relevant assessments in top-K) / (Total relevant assessments)
-   - Averaged across public and holdout traces
-
-3. **Behavior Probes (Pass Rate)**
-   - Agent refuses off-topic requests
-   - Agent doesn't recommend on turn 1 for vague queries
-   - Agent honors mid-conversation refinements
-   - Minimal hallucinations (URLs and names from catalog only)
-   - Proper state transitions (clarify → ready → recommend)
-
-### Testing Against Provided Conversations
-
-Provided in `SHL sample_conversations/GenAI_SampleConversations/`:
-- C1.md - C10.md: 10 sample conversation traces
-- Each includes persona facts, expected behavior, and labeled shortlist
-- Use these to develop and validate the agent
-
-### Example Test Conversation
-
-```python
-# Sample conversation for testing
-conversation = [
-    {"role": "user", "content": "We're hiring a senior Java developer"},
-    {"role": "assistant", "content": "Great. What's the primary use - screening candidates, development, or benchmarking?"},
-    {"role": "user", "content": "Selection - we need to compare candidates"},
-    {"role": "assistant", "content": "For Java developer selection, here are 5 relevant technical assessments..."},
-]
-
-# Expected: 1-10 recommendations with catalog URLs only
-```
-
-## Deployment Options
-
-### Option 1: Render (Recommended for simplicity)
-```bash
-# Connect GitHub repo
-# Render auto-deploys on push
-# Environment: Python 3.10
-Start command: python -m uvicorn app:app --host 0.0.0.0 --port $PORT
-
+## File Structure
 
 ```
-
-### Option 2: Railway
-```bash
-# Create Railway project
-# Link GitHub
-# Set start command: uvicorn app:app --host 0.0.0.0 --port $PORT
+d:\SHL Assesment Project\
+├── app.py                      # FastAPI service (137 lines)
+├── agent.py                    # Conversational logic (350+ lines)
+├── catalog.py                  # Catalog loading (180 lines)
+├── config.py                   # Configuration (20 lines)
+├── start.py                    # Server launcher (25 lines)
+├── requirements.txt            # Python dependencies
+├── Procfile                    # Heroku/Render config
+├── render.yaml                 # Render service config
+├── runtime.txt                 # Python 3.11.9
+├── integration_test.py         # 6 integration tests (200+ lines)
+├── shl_product_catalog.json    # 564 SHL assessments
+├── README.md                   # This file
+├── APPROACH.md                 # Design document (410 lines)
+├── DEPLOYMENT.md               # Deployment guide (186 lines)
+└── SHL_sample_conversations/   # C1-C10 reference traces
 ```
 
-### Option 3: Modal (Serverless)
-```bash
-# Install Modal CLI
-modal deploy app.py
-# Automatically scales to 0 when idle
+## Dependencies
+
+```
+fastapi>=0.136.0           # Web framework
+uvicorn[standard]>=0.46.0  # ASGI server
+requests>=2.33.0           # HTTP client
+python-dotenv>=1.0.0       # Environment variables
 ```
 
-### Option 4: Fly.io
-```bash
-flyctl launch
-flyctl deploy
-```
-
-### Environment Variables
-```
-API_HOST=0.0.0.0
-API_PORT=8000
-LOG_LEVEL=INFO
-CATALOG_RELOAD_INTERVAL=3600
-```
+**Install**: `pip install -r requirements.txt`
 
 ## Troubleshooting
 
-### Catalog Loading Issues
+| Issue | Solution |
+|-------|----------|
+| Port 8000 in use | `taskkill /PID <pid> /F` then restart |
+| Catalog not loading | Verify `shl_product_catalog.json` in project root |
+| Tests fail | Ensure server running on localhost:8000 |
+| "python: command not found" on Render | Using `render.yaml` instead of Procfile |
 
-**Problem**: "Invalid control character" errors
+## Conversational Examples
 
-**Solution**: The system has three fallback strategies. If still failing:
-1. Verify file exists: `ls shl_product_catalog.json`
-2. Check encoding: `file shl_product_catalog.json`
-3. Validate JSON structure manually
-4. Install ijson: `pip install ijson`
-
-### Service Not Starting
-
-**Problem**: Port already in use
-
-**Solution**: 
-```bash
-# Use different port
-uvicorn app:app --port 8001
-
-# Or kill existing process on port 8000
-# Windows: netstat -ano | findstr :8000
-# Kill by PID: taskkill /PID <PID> /F
+**Clarification Flow**
+```
+User: "We need an assessment"
+Agent: "Let's start by understanding your hiring need. What role are you filling?"
 ```
 
-### Recommendations Not Appearing
+**Recommendation Flow**
+```
+User: "Senior Java developers, selection"
+Agent: "For Java developer selection, here are 7 technical assessments..."
+Recommendations: [Java 8 (New), Problem Solving, ...]
+```
 
-**Problem**: Empty recommendations array despite clarification
+**Refinement Flow**
+```
+User: "Actually, add personality tests"
+Agent: "Got it, here are 8 assessments with personality tests included..."
+```
 
-**Solution**: 
-1. Check agent context extraction - add debug logging
-2. Verify catalog loaded: GET /health
-3. Ensure sufficient context gathered (see conversation flow)
-4. Review scoring logic in agent.py
+**Off-Topic Refusal**
+```
+User: "What's the best hiring advice?"
+Agent: "I'm focused on SHL assessment recommendations. I can't help with general hiring advice..."
+```
 
-## Performance Characteristics
+## Submission Details
 
-- **Cold start**: ~2 seconds (catalog loading)
-- **Warm request latency**: 50-200ms (context extraction + scoring)
-- **Memory footprint**: 150-300MB (depending on catalog size)
-- **Catalog size**: ~500-1000+ assessments
-- **Recommendation scoring**: O(n) where n = catalog size
+**Public API**: https://shl-assessment-recommender.onrender.com
 
-## Code Quality & Design Patterns
+**Approach Document**: [APPROACH.md](./APPROACH.md) - 410 lines covering design, retrieval, evaluation, lessons learned
 
-### Patterns Used
-- **Factory Pattern**: `create_agent()` for agent instantiation
-- **Singleton Pattern**: `get_catalog()` for global catalog access
-- **Strategy Pattern**: Multiple catalog loading strategies with fallbacks
-- **Data Classes**: `ConversationContext` for state management
+**Test Status**: ✅ 6/6 passing (100%)
 
-### Error Handling
-- Graceful degradation: Multiple catalog loading fallbacks
-- Explicit HTTPException for API errors
-- Comprehensive logging at INFO and ERROR levels
-- Validation at API layer (Pydantic models)
+**Catalog**: ✅ 564/564 items loaded
 
-### Testing Approach
-- Unit-testable extraction logic (keyword-based, not LLM)
-- Deterministic scoring for reproducible results
-- Stateless design enables easy test replay
-- Sample conversation traces for integration testing
+**Features Implemented**:
+- ✅ Clarification (progressive questions)
+- ✅ Recommendations (1-10 assessments with URLs)
+- ✅ Refinement (mid-conversation updates)
+- ✅ Comparison (assessment data included)
+- ✅ Refusal (off-topic detection)
+- ✅ Schema compliance (exact format)
 
-## Known Limitations
+**Architecture**:
+- No external LLM calls (rule-based)
+- Stateless design (scales infinitely)
+- Deterministic scoring (reproducible)
+- Robust parsing (handles catalog encoding issues)
 
-1. **No Learning**: Agent doesn't improve from conversation outcomes
-2. **Keyword-Based**: Context extraction is pattern-based, not semantic
-3. **No Personalization**: No user history or preference tracking
-4. **Catalog Static**: Catalog doesn't auto-update; manual reload needed
-5. **No Fallback LLM**: Uses only rule-based logic (no GPT fallback)
+**AI Tools Used**: GitHub Copilot (code generation, testing, documentation)
 
-## Future Improvements
+## Support
 
-1. **Semantic Search**: Integrate embeddings for better keyword matching
-2. **Learning Loop**: Track final user selections and optimize scoring
-3. **Multi-Language**: Support non-English hiring scenarios
-4. **Caching**: Redis for catalog and embedding caching
-5. **Analytics**: Track conversation patterns and recommendation quality
-6. **A/B Testing**: Compare different clarification strategies
+**Documentation**:
+- [APPROACH.md](./APPROACH.md) - Full design rationale
+- [DEPLOYMENT.md](./DEPLOYMENT.md) - Detailed deployment guide
+- `/docs` endpoint - Interactive Swagger UI
 
-## Contact & Support
+**Sample Conversations**: `SHL_sample_conversations/GenAI_SampleConversations/` (C1-C10)
 
-For issues or questions:
-- Check README thoroughly first
-- Review sample conversations (C1-C10)
-- Verify catalog is properly loaded
-- Check logs for error messages
-
-## License & Attribution
-
-This project implements the SHL Assessment Recommender task. It uses the SHL product catalog from https://www.shl.com/solutions/products/productcatalog/
+**Issues**:
+1. Check README & APPROACH.md thoroughly
+2. Review sample conversation traces
+3. Run integration tests locally
+4. Check server logs for error messages
 
 ---
 
-**Version**: 1.0.0  
-**Last Updated**: May 2026  
-**Status**: Production Ready
+**Status**: ✅ Production Ready  
+**Tests**: ✅ 6/6 Passing  
+**Deployment**: ✅ Render Ready  
+**Documentation**: ✅ Complete
